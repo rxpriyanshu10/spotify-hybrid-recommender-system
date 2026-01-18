@@ -11,6 +11,7 @@ import io
 import shutil
 import numpy as np
 from scipy.sparse import csr_matrix
+from scipy.sparse import load_npz as _scipy_load_npz
 
 
 # Helper: try to download and extract a zip URL to the repository root
@@ -65,7 +66,41 @@ if missing_files:
 songs_data = pd.read_csv(cleaned_data_path)
 
 # load the transformed data
-transformed_data = csr_matrix(np.load(transformed_data_path, allow_pickle=True)['arr_0'])
+def _load_sparse_matrix(path: str):
+    """Load a sparse matrix from a .npz file.
+    Tries scipy.sparse.load_npz first, then falls back to loading with numpy
+    and reconstructing a CSR matrix from common save formats.
+    """
+    try:
+        return _scipy_load_npz(path)
+    except Exception:
+        pass
+
+    try:
+        with np.load(path, allow_pickle=True) as npz:
+            files = list(npz.files)
+            # common single-array save (arr_0)
+            if "arr_0" in npz:
+                return csr_matrix(npz["arr_0"][()]) if npz["arr_0"].dtype == object else csr_matrix(npz["arr_0"])
+
+            # scipy.save_npz stores 'data','indices','indptr','shape'
+            if set(["data", "indices", "indptr", "shape"]).issubset(files):
+                data = npz["data"]
+                indices = npz["indices"]
+                indptr = npz["indptr"]
+                shape = tuple(npz["shape"])
+                return csr_matrix((data, indices, indptr), shape)
+
+            # single unnamed array
+            if len(files) == 1:
+                return csr_matrix(npz[files[0]])
+
+    except Exception:
+        pass
+
+    raise ValueError(f"Could not load sparse matrix from {path}")
+
+transformed_data = _load_sparse_matrix(transformed_data_path)
 
 # load the track ids
 track_ids = load(track_ids_path, allow_pickle=True)
@@ -74,10 +109,10 @@ track_ids = load(track_ids_path, allow_pickle=True)
 filtered_data = pd.read_csv(filtered_data_path)
 
 # load the interaction matrix
-interaction_matrix = csr_matrix(np.load(interaction_matrix_path, allow_pickle=True)['arr_0'])
+interaction_matrix = _load_sparse_matrix(interaction_matrix_path)
 
 # load the transformed hybrid data
-transformed_hybrid_data = csr_matrix(np.load(transformed_hybrid_data_path, allow_pickle=True)['arr_0'])
+transformed_hybrid_data = _load_sparse_matrix(transformed_hybrid_data_path)
 
 
 # Title
