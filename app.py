@@ -4,30 +4,77 @@ from scipy.sparse import load_npz
 import pandas as pd
 from numpy import load
 from hybrid_recommendations import HybridRecommenderSystem
+import os
+import requests
+import zipfile
+import io
+import shutil
 
+
+# Helper: try to download and extract a zip URL to the repository root
+def _fetch_and_extract(url: str, dest: str = ".") -> bool:
+    try:
+        resp = requests.get(url, stream=True, timeout=30)
+        resp.raise_for_status()
+        # If zip, extract in-memory
+        if url.lower().endswith(".zip"):
+            z = zipfile.ZipFile(io.BytesIO(resp.content))
+            z.extractall(dest)
+            return True
+        # Otherwise save to file
+        filename = os.path.join(dest, os.path.basename(url))
+        with open(filename, "wb") as f:
+            shutil.copyfileobj(resp.raw, f)
+        return True
+    except Exception:
+        return False
+
+
+# Paths
+cleaned_data_path = "data/cleaned_data.csv"
+transformed_data_path = "data/transformed_data.npz"
+track_ids_path = "data/track_ids.npy"
+filtered_data_path = "data/collab_filtered_data.csv"
+interaction_matrix_path = "data/interaction_matrix.npz"
+transformed_hybrid_data_path = "data/transformed_hybrid_data.npz"
+
+
+# Ensure required files exist or attempt to fetch them if a DATA_URL is provided
+missing_files = []
+for p in [cleaned_data_path, transformed_data_path, track_ids_path, filtered_data_path, interaction_matrix_path, transformed_hybrid_data_path]:
+    if not os.path.exists(p):
+        missing_files.append(p)
+
+if missing_files:
+    data_url = os.environ.get("DATA_URL") or (st.secrets.get("DATA_URL") if hasattr(st, "secrets") else None)
+    if data_url:
+        st.info("Required data files are missing. Attempting to download data from DATA_URL...")
+        ok = _fetch_and_extract(data_url, dest=".")
+        if ok:
+            st.success("Download complete — continuing startup.")
+        else:
+            st.error("Failed to download data from DATA_URL. Please provide the `data/` folder via Git LFS or a valid ZIP URL in the `DATA_URL` env var.")
+            st.stop()
+    else:
+        st.error("Required data files are missing: {}.\nProvide the `data/` folder (tracked with Git LFS) or set the `DATA_URL` environment variable to a ZIP containing the `data/` directory.".format(", ".join(missing_files)))
+        st.stop()
 
 # load the data
-cleaned_data_path = "data/cleaned_data.csv"
 songs_data = pd.read_csv(cleaned_data_path)
 
 # load the transformed data
-transformed_data_path = "data/transformed_data.npz"
 transformed_data = load_npz(transformed_data_path)
 
 # load the track ids
-track_ids_path = "data/track_ids.npy"
-track_ids = load(track_ids_path,allow_pickle=True)
+track_ids = load(track_ids_path, allow_pickle=True)
 
 # load the filtered songs data
-filtered_data_path = "data/collab_filtered_data.csv"
 filtered_data = pd.read_csv(filtered_data_path)
 
 # load the interaction matrix
-interaction_matrix_path = "data/interaction_matrix.npz"
 interaction_matrix = load_npz(interaction_matrix_path)
 
 # load the transformed hybrid data
-transformed_hybrid_data_path = "data/transformed_hybrid_data.npz"
 transformed_hybrid_data = load_npz(transformed_hybrid_data_path)
 
 # Title
