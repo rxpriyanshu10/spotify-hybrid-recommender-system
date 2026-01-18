@@ -9,6 +9,8 @@ import requests
 import zipfile
 import io
 import shutil
+import numpy as np
+from scipy.sparse import csr_matrix
 
 
 # Helper: try to download and extract a zip URL to the repository root
@@ -63,7 +65,7 @@ if missing_files:
 songs_data = pd.read_csv(cleaned_data_path)
 
 # load the transformed data
-transformed_data = load_npz(transformed_data_path)
+transformed_data = csr_matrix(np.load(transformed_data_path, allow_pickle=True)['arr_0'])
 
 # load the track ids
 track_ids = load(track_ids_path, allow_pickle=True)
@@ -72,10 +74,11 @@ track_ids = load(track_ids_path, allow_pickle=True)
 filtered_data = pd.read_csv(filtered_data_path)
 
 # load the interaction matrix
-interaction_matrix = load_npz(interaction_matrix_path)
+interaction_matrix = csr_matrix(np.load(interaction_matrix_path, allow_pickle=True)['arr_0'])
 
 # load the transformed hybrid data
-transformed_hybrid_data = load_npz(transformed_hybrid_data_path)
+transformed_hybrid_data = csr_matrix(np.load(transformed_hybrid_data_path, allow_pickle=True)['arr_0'])
+
 
 # Title
 st.title('Welcome to the Spotify Song Recommender!')
